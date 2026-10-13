@@ -106,7 +106,7 @@ export function OrgCanvas({ user }: { user: AuthProfile }) {
 
   return (
     <div className="flex h-full min-h-[70vh] gap-4">
-      <div className="relative min-h-[70vh] flex-1 overflow-hidden rounded-xl border border-gray-200 bg-white">
+      <div className="relative h-[70vh] flex-1 overflow-hidden rounded-xl border border-gray-200 bg-white">
         {isAdmin && (
           <button
             type="button"

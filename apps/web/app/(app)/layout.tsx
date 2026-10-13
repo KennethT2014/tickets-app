@@ -13,12 +13,16 @@ export default function AppShellLayout({ children }: { children: React.ReactNode
   const router = useRouter();
   const pathname = usePathname();
   const { t } = useI18n();
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const { data: user, isLoading, isError } = useQuery({
     queryKey: ["me"],
     queryFn: () => api<AuthProfile>("/auth/me"),
     retry: false,
   });
+
+  useEffect(() => {
+    setOpen(window.innerWidth >= 768);
+  }, []);
 
   useEffect(() => {
     if (!isLoading && (isError || !user)) {
