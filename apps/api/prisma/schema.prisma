@@ -1,0 +1,148 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum GlobalRole {
+  ADMIN
+  EMPLOYEE
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING
+  RESOLVED
+  CLOSED
+  CANCELLED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum TicketEventType {
+  CREATED
+  ASSIGNED
+  STATUS_CHANGED
+  COMMENTED
+  CLOSED
+  PRIORITY_CHANGED
+}
+
+model User {
+  id           String     @id @default(cuid())
+  email        String     @unique
+  passwordHash String
+  name         String
+  isActive     Boolean    @default(true)
+  globalRole   GlobalRole @default(EMPLOYEE)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  ledAreas          Area[]            @relation("AreaLead")
+  memberships       AreaMembership[]
+  requestedTickets  Ticket[]          @relation("TicketRequester")
+  assignedTickets   Ticket[]          @relation("TicketAssignee")
+  comments          TicketComment[]
+  events            TicketEvent[]
+  notifications     Notification[]
+}
+
+model Area {
+  id         String   @id @default(cuid())
+  name       String
+  slug       String   @unique
+  parentId   String?
+  parent     Area?    @relation("AreaTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children   Area[]   @relation("AreaTree")
+  leadUserId String?
+  lead       User?    @relation("AreaLead", fields: [leadUserId], references: [id], onDelete: SetNull)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  memberships AreaMembership[]
+  tickets     Ticket[]
+}
+
+model AreaMembership {
+  id        String   @id @default(cuid())
+  userId    String
+  areaId    String
+  canAssign Boolean  @default(false)
+  canClose  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  area      Area     @relation(fields: [areaId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, areaId])
+}
+
+model Ticket {
+  id          String         @id @default(cuid())
+  number      String         @unique
+  title       String
+  body        String
+  requesterId String
+  areaId      String
+  assigneeId  String?
+  status      TicketStatus   @default(OPEN)
+  priority    TicketPriority @default(MEDIUM)
+  category    String?
+  dueAt       DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  requester     User           @relation("TicketRequester", fields: [requesterId], references: [id])
+  area          Area           @relation(fields: [areaId], references: [id])
+  assignee      User?          @relation("TicketAssignee", fields: [assigneeId], references: [id])
+  comments      TicketComment[]
+  events        TicketEvent[]
+  notifications Notification[]
+}
+
+model TicketComment {
+  id        String   @id @default(cuid())
+  ticketId  String
+  authorId  String
+  body      String
+  createdAt DateTime @default(now())
+  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author    User     @relation(fields: [authorId], references: [id])
+}
+
+model TicketEvent {
+  id        String          @id @default(cuid())
+  ticketId  String
+  actorId   String
+  type      TicketEventType
+  message   String
+  createdAt DateTime        @default(now())
+  ticket    Ticket          @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  actor     User            @relation(fields: [actorId], references: [id])
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  ticketId  String?
+  title     String
+  body      String
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ticket    Ticket?   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+}
+
+model TicketCounter {
+  id    Int @id
+  value Int @default(0)
+}

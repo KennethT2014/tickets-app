@@ -1,0 +1,11 @@
+services:
+  libsql:
+    image: ghcr.io/tursodatabase/libsql-server:latest
+    ports:
+      - "8080:8080"
+    environment:
+      SQLD_NODE: primary
+      SQLD_HTTP_LISTEN_ADDR: "0.0.0.0:8080"
+    volumes:
+      - ./data/libsql:/var/lib/sqld
+    restart: unless-stopped
