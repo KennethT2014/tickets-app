@@ -1,3 +1,5 @@
+name: tickets-app
+
 services:
   libsql:
     image: ghcr.io/tursodatabase/libsql-server:latest

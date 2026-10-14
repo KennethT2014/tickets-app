@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "nest-next-turbo",
+      "name": "tickets-app",
       "devDependencies": {
         "prettier": "3.9.6",
         "turbo": "^2.11.7",

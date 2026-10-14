@@ -1,5 +1,5 @@
 {
-  "name": "nest-next-turbo",
+  "name": "tickets-app",
   "private": true,
   "scripts": {
     "build": "turbo run build",
