@@ -121,4 +121,6 @@ DOC-02 consolidado y verificado. Próximo paso académico: completar y validar l
 - La entrega actual es un único Word; no se crearon nuevos PDF o ZIP de entrega. El índice señala la versión actual y mantiene el material anterior como histórico.
 - RDD permanece desactivado por decisión global. El espejo de Engram sigue pendiente por falta de herramientas disponibles, con avance y evidencia íntegros en este archivo local.
 
-Registro del commit de la unidad DOC-02 pendiente de capturar tras guardar la entrega local.
+Unidad DOC-02 guardada en el commit `02d92a626935fc0ded6c8bdba3d9c4999e1a14eb` de `codex/documentacion-fases-1-5`.
+
+La evaluación sobre ese rango comprometido, desde `0ed08d553c5974e5b3dccb66ddb4a815d96550d3`, finalizó con salida 0: riesgo `medium`, cuatro rutas, 53 líneas, `review_due: false` y motivo `under_budget`. La autoverificación y la revisión independiente de DOC-02 están completas; RDD permanece desactivado y no se inició ningún ciclo de revisión nativa.
