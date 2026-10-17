@@ -67,4 +67,8 @@ Pendiente de revisión independiente antes de cerrar DOC-01. No se efectuaron co
 - Los cinco archivos de aplicación modificados antes de este trabajo quedan fuera de la entrega y de sus commits. Las herramientas y los renders locales de QA están excluidos del control de versiones mediante `docs/fases-1-5/.gitignore`.
 - RDD permanece desactivado. El espejo Engram está pendiente por indisponibilidad de sus herramientas; el documento local conserva íntegro el avance.
 
-Registro de commit de la unidad documental: pendiente de capturar tras guardar la entrega local.
+Unidad documental guardada en el commit `af5781cda4dba92abf9ae768be5ad88cfbcc7777` de la rama `codex/documentacion-fases-1-5`.
+
+La evaluación final sobre ese rango comprometido, desde `eab6caceb41128ea87bf12ef08d7174e0d73cfa3`, terminó con salida 0: riesgo `medium`, 29 rutas y 121 líneas, `review_due: false`, motivo `under_budget`. Esta evaluación resuelve la indisponibilidad inicial por archivos sin seguimiento. RDD sigue desactivado y la verificación independiente documental está completa.
+
+La comparación SHA-256 del coordinador confirmó que los cinco archivos de aplicación previamente modificados conservaron exactamente sus bytes. Se guardaron únicamente documentos y seguimiento local, sin publicación ni operaciones remotas.
