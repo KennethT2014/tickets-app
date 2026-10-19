@@ -21,7 +21,11 @@ export default function AppShellLayout({ children }: { children: React.ReactNode
   });
 
   useEffect(() => {
-    setOpen(window.innerWidth >= 768);
+    const media = window.matchMedia("(min-width: 768px)");
+    const apply = () => setOpen(media.matches);
+    apply();
+    media.addEventListener("change", apply);
+    return () => media.removeEventListener("change", apply);
   }, []);
 
   useEffect(() => {
@@ -54,7 +58,9 @@ export default function AppShellLayout({ children }: { children: React.ReactNode
       <Sidebar user={user} open={open} onToggle={() => setOpen((value) => !value)} />
       <div className="relative flex h-screen min-w-0 flex-1 flex-col overflow-hidden">
         <Header onMenu={() => setOpen((value) => !value)} />
-        <main className="min-h-0 flex-1 overflow-y-auto p-4 md:p-8">{children}</main>
+        <main className="flex h-0 min-h-0 flex-1 flex-col overflow-y-auto p-3 sm:p-4 md:p-6">
+          {children}
+        </main>
       </div>
     </div>
   );
