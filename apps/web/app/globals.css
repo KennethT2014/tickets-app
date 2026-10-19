@@ -46,3 +46,26 @@ body {
 * {
   box-sizing: border-box;
 }
+
+.ticket-board {
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: 4px;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(12, 16, 68, 0.28) transparent;
+}
+
+.ticket-board::-webkit-scrollbar {
+  height: 10px;
+}
+
+.ticket-board::-webkit-scrollbar-thumb {
+  background: rgba(12, 16, 68, 0.28);
+  border-radius: 999px;
+}
+
+@media (min-width: 768px) {
+  .ticket-board {
+    scroll-snap-type: none;
+  }
+}
