@@ -13,7 +13,7 @@ bun run db:setup
 bun run dev
 ```
 
-Abre [http://localhost:3000](http://localhost:3000) con `admin@castlewalk.us` / `Admin123!`.
+Abre [http://localhost:3000](http://localhost:3000) con `admin@ems.net` / `messi2012`.
 
 ## Documentación
 

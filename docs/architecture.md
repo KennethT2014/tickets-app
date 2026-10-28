@@ -17,7 +17,7 @@ flowchart LR
 | `packages/ui` | Componentes compartidos (mínimos) | — |
 | `docker-compose.yml` | `ghcr.io/tursodatabase/libsql-server` | 8080 |
 
-El frontend usa `NEXT_PUBLIC_API_URL=http://localhost:3006/api` y `credentials: "include"`. Nest habilita CORS hacia `http://localhost:3000`.
+El frontend llama a `/api` en el mismo origen (`localhost:3000`). Next reescribe esas rutas hacia Nest en `:3006`, así la cookie de sesión es de primer partido.
 
 ## Auth
 
@@ -34,7 +34,7 @@ Prisma en `apps/api/prisma/schema.prisma`. En runtime Nest usa el adapter libSQL
 
 Tablas principales:
 
-- `User` — `ADMIN` o `EMPLOYEE`
+- `User` — `ADMIN`, `MANAGEMENT` (Gerencia), `AREA_LEAD` (Jefe de área) o `EMPLOYEE` (Empleado)
 - `Area` — árbol (`parentId`) + `leadUserId`
 - `AreaMembership` — `canAssign`, `canClose`
 - `Ticket` — destino, asignado, estado, prioridad
@@ -58,9 +58,9 @@ El esquema inicial está en `apps/api/prisma/init.sql`. El seed vive en `apps/ap
 Permisos de ticket se evalúan en el servicio, no solo por rol global:
 
 - Crear: autenticado
-- Ver: requester, assignee, miembros/lead del área, Admin
-- Asignar: Admin, lead, o `canAssign`
-- Cerrar: Admin, lead, o `canClose`
+- Ver: requester, assignee, miembros/lead del área, Admin, Gerencia
+- Asignar: Admin, Gerencia, lead, o `canAssign`
+- Cerrar: Admin, Gerencia, lead, o `canClose`
 
 ## Variables
 
@@ -78,7 +78,8 @@ COOKIE_NAME="cw_session"
 Web (`apps/web/.env.local`):
 
 ```
-NEXT_PUBLIC_API_URL=http://localhost:3006/api
+NEXT_PUBLIC_API_URL=/api
+API_PROXY_TARGET=http://localhost:3006
 ```
 
 Los `.env` reales no se suben al repo. Usa los `.env.example`.

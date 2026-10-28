@@ -1,12 +1,8 @@
-export type GlobalRole = "ADMIN" | "EMPLOYEE";
+export type { GlobalRole } from "./roles";
+import type { GlobalRole } from "./roles";
 
 export type TicketStatus =
-  | "OPEN"
-  | "IN_PROGRESS"
-  | "WAITING"
-  | "RESOLVED"
-  | "CLOSED"
-  | "CANCELLED";
+  "OPEN" | "IN_PROGRESS" | "WAITING" | "RESOLVED" | "CLOSED" | "CANCELLED";
 
 export type TicketPriority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
 
@@ -86,12 +82,69 @@ export type TicketDetail = Ticket & {
   permissions: { canAssign: boolean; canClose: boolean };
 };
 
+export type KpiAreaSummary = {
+  areaId: string;
+  name: string;
+  open: number;
+  unassigned?: number;
+  overdue?: number;
+  critical?: number;
+};
+
+export type KpiActivityEvent = {
+  id: string;
+  type: string;
+  message: string;
+  createdAt: string;
+  actor: { id: string; name: string; email: string };
+  ticket: {
+    id: string;
+    number: string;
+    title: string;
+    areaName: string;
+  };
+};
+
 export type Kpis = {
+  total?: number;
   open: number;
   overdue: number;
+  dueSoon?: number;
+  unassigned?: number;
+  criticalOpen?: number;
+  slaCompliancePct?: number;
+  resolutionRatePct?: number;
   mine: number;
-  byArea: { areaId: string; name: string; open: number }[];
+  byArea: KpiAreaSummary[];
   byStatus: Record<string, number>;
+  byPriority?: Record<string, number>;
+  recentEvents?: KpiActivityEvent[];
+};
+
+export type AuditMilestone = {
+  at: string;
+  elapsedMs: number;
+  actor: { id: string; name: string; email: string };
+};
+
+export type AuditReport = {
+  tickets: {
+    id: string;
+    number: string;
+    title: string;
+    status: TicketStatus;
+    createdAt: string;
+    area: { name: string };
+    firstRead: AuditMilestone | null;
+    firstStarted: AuditMilestone | null;
+    firstResolved: AuditMilestone | null;
+  }[];
+  people: {
+    actor: AuditMilestone["actor"];
+    read: { count: number; averageMs: number | null };
+    started: { count: number; averageMs: number | null };
+    resolved: { count: number; averageMs: number | null };
+  }[];
 };
 
 export type NotificationItem = {

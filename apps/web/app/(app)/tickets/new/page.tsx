@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useMemo } from "react";
 import { api } from "../../../../lib/api";
@@ -13,6 +13,7 @@ const priorities: TicketPriority[] = ["LOW", "MEDIUM", "HIGH", "URGENT"];
 export default function NewTicketPage() {
   const { t } = useI18n();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { data: forest = [] } = useQuery({
     queryKey: ["org"],
     queryFn: () => api<AreaNode[]>("/org/tree"),
@@ -24,7 +25,12 @@ export default function NewTicketPage() {
   const create = useMutation({
     mutationFn: (body: Record<string, unknown>) =>
       api<Ticket>("/tickets", { method: "POST", body: JSON.stringify(body) }),
-    onSuccess: (ticket) => router.push(`/tickets/${ticket.id}`),
+    onSuccess: (ticket) => {
+      queryClient.invalidateQueries({ queryKey: ["tickets"] });
+      queryClient.invalidateQueries({ queryKey: ["kpis"] });
+      queryClient.invalidateQueries({ queryKey: ["audit"] });
+      router.push(`/tickets/${ticket.id}`);
+    },
   });
 
   return (

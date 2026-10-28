@@ -40,7 +40,7 @@ bun run db:setup
 bun run dev
 ```
 
-5. Abre [http://localhost:3000](http://localhost:3000) e inicia sesión con `admin@castlewalk.us` / `Admin123!`.
+5. Abre [http://localhost:3000](http://localhost:3000) e inicia sesión con `admin@ems.net` / `messi2012`.
 
 ## Cuentas demo
 
@@ -48,12 +48,14 @@ Todas las contraseñas de empleados son `CastleWalk1`.
 
 | Correo | Rol en la demo |
 |--------|----------------|
-| `admin@castlewalk.us` | Admin global (`Admin123!`) |
-| `sofia.hr@castlewalk.us` | Gestora de Human Resources |
-| `lucia.hr@castlewalk.us` | Miembro de HR con permiso de cierre |
+| `admin@ems.net` | Admin (`messi2012`) |
+| `admin@castlewalk.us` | Admin (`Admin123!`) |
+| `gerencia@castlewalk.us` | Gerencia |
+| `sofia.hr@castlewalk.us` | Jefe de área de Human Resources |
+| `lucia.hr@castlewalk.us` | Empleado de HR con permiso de cierre |
 | `martin.employee@castlewalk.us` | Empleado de Payroll; puede crear tickets |
-| `diego.ti@castlewalk.us` | Gestor de Support and TI |
-| `camila.dev@castlewalk.us` | Gestora de Development |
+| `diego.ti@castlewalk.us` | Jefe de área de Support and TI |
+| `camila.dev@castlewalk.us` | Jefe de área de Development |
 
 ## Comandos útiles
 

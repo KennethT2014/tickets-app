@@ -13,6 +13,7 @@ import { useMemo, useState } from "react";
 import { useI18n } from "../app/providers";
 import { api } from "../lib/api";
 import { flattenAreas, layoutOrgTree } from "../lib/org-layout";
+import { canOverseeAllTickets, isAdmin as hasAdminRole } from "../lib/roles";
 import type { AreaNode, AuthProfile, PublicUser } from "../lib/types";
 import { Modal } from "./Modal";
 
@@ -48,9 +49,9 @@ export function OrgCanvas({ user }: { user: AuthProfile }) {
   const [creating, setCreating] = useState(false);
   const layout = useMemo(() => layoutOrgTree(forest), [forest]);
   const flat = useMemo(() => flattenAreas(forest), [forest]);
-  const isAdmin = user.globalRole === "ADMIN";
+  const isAdmin = hasAdminRole(user.globalRole);
   const canManage = (area: AreaNode) =>
-    isAdmin || user.leadAreaIds.includes(area.id);
+    canOverseeAllTickets(user.globalRole) || user.leadAreaIds.includes(area.id);
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["org"] });
 

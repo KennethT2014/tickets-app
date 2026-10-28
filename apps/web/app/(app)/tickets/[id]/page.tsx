@@ -2,9 +2,14 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "next/navigation";
+import { useEffect } from "react";
 import { PriorityLabel, StatusBadge } from "../../../../components/StatusBadge";
 import { api } from "../../../../lib/api";
-import type { PublicUser, TicketDetail, TicketStatus } from "../../../../lib/types";
+import type {
+  PublicUser,
+  TicketDetail,
+  TicketStatus,
+} from "../../../../lib/types";
 import { useI18n } from "../../../providers";
 
 const statuses: TicketStatus[] = [
@@ -28,12 +33,33 @@ export default function TicketDetailPage() {
     queryKey: ["users"],
     queryFn: () => api<PublicUser[]>("/users"),
   });
+  const { mutate: recordRead, isError: readFailed } = useMutation({
+    mutationFn: (id: string) => api(`/tickets/${id}/read`, { method: "POST" }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["audit"] }),
+  });
+  const displayedId = ticket?.id;
+  useEffect(() => {
+    if (!displayedId) return;
+    // Record only after detail content mounts in a visible tab, never on fetch.
+    const recordWhenVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      recordRead(displayedId);
+      document.removeEventListener("visibilitychange", recordWhenVisible);
+    };
+    recordWhenVisible();
+    if (document.visibilityState !== "visible") {
+      document.addEventListener("visibilitychange", recordWhenVisible);
+    }
+    return () =>
+      document.removeEventListener("visibilitychange", recordWhenVisible);
+  }, [displayedId, recordRead]);
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["ticket", params.id] });
     queryClient.invalidateQueries({ queryKey: ["tickets"] });
     queryClient.invalidateQueries({ queryKey: ["kpis"] });
     queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    queryClient.invalidateQueries({ queryKey: ["audit"] });
   };
 
   const assign = useMutation({
@@ -68,6 +94,21 @@ export default function TicketDetailPage() {
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_280px]">
       <div className="space-y-4">
+        {readFailed && (
+          <p
+            role="alert"
+            className="rounded-lg border border-orange bg-white p-3 text-sm text-navy"
+          >
+            {t("audit.readFailed")}{" "}
+            <button
+              type="button"
+              className="font-semibold underline"
+              onClick={() => recordRead(ticket.id)}
+            >
+              {t("audit.retry")}
+            </button>
+          </p>
+        )}
         <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
           <p className="text-sm font-semibold text-orange">{ticket.number}</p>
           <h1 className="mt-1 text-2xl font-bold text-navy">{ticket.title}</h1>
@@ -76,10 +117,14 @@ export default function TicketDetailPage() {
             <PriorityLabel priority={ticket.priority} />
             <span className="text-sm text-gray-2">{ticket.area.name}</span>
           </div>
-          <p className="mt-4 whitespace-pre-wrap text-sm text-gray-2">{ticket.body}</p>
+          <p className="mt-4 whitespace-pre-wrap text-sm text-gray-2">
+            {ticket.body}
+          </p>
         </div>
         <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-          <h2 className="mb-4 text-sm font-bold text-navy">{t("tickets.comment")}</h2>
+          <h2 className="mb-4 text-sm font-bold text-navy">
+            {t("tickets.comment")}
+          </h2>
           <ul className="space-y-3">
             {ticket.comments.map((item) => (
               <li key={item.id} className="rounded-lg bg-gray-6 p-3 text-sm">
@@ -103,17 +148,25 @@ export default function TicketDetailPage() {
               className="flex-1 rounded-lg border border-gray-5 bg-gray-6 px-3 py-2 text-sm"
               placeholder={t("tickets.comment")}
             />
-            <button type="submit" className="rounded-lg bg-navy px-4 py-2 text-sm font-semibold text-white">
+            <button
+              type="submit"
+              className="rounded-lg bg-navy px-4 py-2 text-sm font-semibold text-white"
+            >
               {t("tickets.send")}
             </button>
           </form>
         </div>
         <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-          <h2 className="mb-3 text-sm font-bold text-navy">{t("tickets.activity")}</h2>
+          <h2 className="mb-3 text-sm font-bold text-navy">
+            {t("tickets.activity")}
+          </h2>
           <ol className="space-y-2 text-sm text-gray-2">
             {ticket.events.map((event) => (
               <li key={event.id}>
-                <span className="font-medium text-navy">{event.actor.name}</span> · {event.message}
+                <span className="font-medium text-navy">
+                  {event.actor.name}
+                </span>{" "}
+                · {event.message}
               </li>
             ))}
           </ol>
@@ -138,7 +191,9 @@ export default function TicketDetailPage() {
               ))}
             </select>
           ) : (
-            <p className="mt-2 text-sm">{ticket.assignee?.name ?? t("tickets.unassigned")}</p>
+            <p className="mt-2 text-sm">
+              {ticket.assignee?.name ?? t("tickets.unassigned")}
+            </p>
           )}
         </div>
         <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
@@ -148,7 +203,9 @@ export default function TicketDetailPage() {
           <select
             className="mt-2 w-full rounded-lg border border-gray-5 bg-gray-6 px-3 py-2 text-sm"
             value={ticket.status}
-            onChange={(event) => changeStatus.mutate(event.target.value as TicketStatus)}
+            onChange={(event) =>
+              changeStatus.mutate(event.target.value as TicketStatus)
+            }
           >
             {statuses.map((status) => (
               <option
@@ -175,7 +232,8 @@ export default function TicketDetailPage() {
         </div>
         <div className="rounded-xl border border-gray-200 bg-white p-4 text-sm shadow-sm">
           <p>
-            <span className="text-gray-3">Requester:</span> {ticket.requester.name}
+            <span className="text-gray-3">Requester:</span>{" "}
+            {ticket.requester.name}
           </p>
         </div>
       </aside>

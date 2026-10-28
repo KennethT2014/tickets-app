@@ -1,4 +1,6 @@
-export type GlobalRole = 'ADMIN' | 'EMPLOYEE';
+import type { GlobalRole } from './roles.js';
+
+export type { GlobalRole };
 
 export type AuthUser = {
   id: string;

@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Modal } from "../../../../components/Modal";
 import { api } from "../../../../lib/api";
+import { GLOBAL_ROLES } from "../../../../lib/roles";
 import type { PublicUser } from "../../../../lib/types";
 import { useI18n } from "../../../providers";
 
@@ -50,7 +51,7 @@ export default function UsersAdminPage() {
               <tr key={user.id} className="border-t border-gray-100">
                 <td className="px-4 py-3 font-medium text-navy">{user.name}</td>
                 <td className="px-4 py-3">{user.email}</td>
-                <td className="px-4 py-3">{user.globalRole}</td>
+                <td className="px-4 py-3">{t(`role.${user.globalRole}`)}</td>
               </tr>
             ))}
           </tbody>
@@ -74,9 +75,12 @@ export default function UsersAdminPage() {
             <input name="name" required placeholder="Name" className="w-full rounded-lg border border-gray-5 bg-gray-6 px-3 py-2" />
             <input name="email" type="email" required className="w-full rounded-lg border border-gray-5 bg-gray-6 px-3 py-2" />
             <input name="password" type="password" required minLength={8} className="w-full rounded-lg border border-gray-5 bg-gray-6 px-3 py-2" />
-            <select name="globalRole" className="w-full rounded-lg border border-gray-5 bg-gray-6 px-3 py-2">
-              <option value="EMPLOYEE">EMPLOYEE</option>
-              <option value="ADMIN">ADMIN</option>
+            <select name="globalRole" defaultValue="EMPLOYEE" className="w-full rounded-lg border border-gray-5 bg-gray-6 px-3 py-2">
+              {GLOBAL_ROLES.map((role) => (
+                <option key={role} value={role}>
+                  {t(`role.${role}`)}
+                </option>
+              ))}
             </select>
             <button type="submit" className="rounded-lg bg-orange px-4 py-2 font-semibold text-white">
               {t("org.save")}

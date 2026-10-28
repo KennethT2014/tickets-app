@@ -4,7 +4,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useI18n } from "../providers";
-import { api } from "../../lib/api";
+import { ApiError, api } from "../../lib/api";
 
 export default function LoginPage() {
   const { t, language, setLanguage } = useI18n();
@@ -49,14 +49,18 @@ export default function LoginPage() {
                 await api("/auth/login", {
                   method: "POST",
                   body: JSON.stringify({
-                    email: form.get("email"),
+                    email: String(form.get("email") ?? "").trim().toLowerCase(),
                     password: form.get("password"),
                   }),
                 });
                 router.push("/");
                 router.refresh();
-              } catch {
-                setError(t("login.invalid"));
+              } catch (error) {
+                setError(
+                  error instanceof ApiError && error.status === 401
+                    ? t("login.invalid")
+                    : t("login.connection"),
+                );
               } finally {
                 setLoading(false);
               }

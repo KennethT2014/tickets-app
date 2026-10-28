@@ -25,7 +25,7 @@ async function upsertUser(input: {
   email: string;
   name: string;
   password: string;
-  globalRole: 'ADMIN' | 'EMPLOYEE';
+  globalRole: 'ADMIN' | 'MANAGEMENT' | 'AREA_LEAD' | 'EMPLOYEE';
 }) {
   const passwordHash = await argon2.hash(input.password);
   return prisma.user.upsert({
@@ -68,23 +68,35 @@ async function main() {
     password: 'Admin123!',
     globalRole: 'ADMIN',
   });
+  await upsertUser({
+    email: 'admin@ems.net',
+    name: 'EMS Admin',
+    password: 'messi2012',
+    globalRole: 'ADMIN',
+  });
+  const gerencia = await upsertUser({
+    email: 'gerencia@castlewalk.us',
+    name: 'Elena Gerencia',
+    password: 'CastleWalk1',
+    globalRole: 'MANAGEMENT',
+  });
   const sofia = await upsertUser({
     email: 'sofia.hr@castlewalk.us',
     name: 'Sofia Herrera',
     password: 'CastleWalk1',
-    globalRole: 'EMPLOYEE',
+    globalRole: 'AREA_LEAD',
   });
   const diego = await upsertUser({
     email: 'diego.ti@castlewalk.us',
     name: 'Diego Ramirez',
     password: 'CastleWalk1',
-    globalRole: 'EMPLOYEE',
+    globalRole: 'AREA_LEAD',
   });
   const camila = await upsertUser({
     email: 'camila.dev@castlewalk.us',
     name: 'Camila Lopez',
     password: 'CastleWalk1',
-    globalRole: 'EMPLOYEE',
+    globalRole: 'AREA_LEAD',
   });
   const lucia = await upsertUser({
     email: 'lucia.hr@castlewalk.us',
@@ -101,7 +113,7 @@ async function main() {
 
   const root = await upsertArea('CastleWalk', null, admin.id);
   const leads: Record<string, string> = {
-    'General gerence': admin.id,
+    'General gerence': gerencia.id,
     'Human Resources': sofia.id,
     'Support and TI': diego.id,
     Development: camila.id,
@@ -194,10 +206,12 @@ async function main() {
   }
 
   console.log('Seed ready');
+  console.log('  admin@ems.net / messi2012');
   console.log('  admin@castlewalk.us / Admin123!');
-  console.log('  sofia.hr@castlewalk.us / CastleWalk1  (HR lead)');
-  console.log('  lucia.hr@castlewalk.us / CastleWalk1  (HR closer)');
-  console.log('  martin.employee@castlewalk.us / CastleWalk1');
+  console.log('  gerencia@castlewalk.us / CastleWalk1  (Gerencia)');
+  console.log('  sofia.hr@castlewalk.us / CastleWalk1  (Jefe de área HR)');
+  console.log('  lucia.hr@castlewalk.us / CastleWalk1  (Empleado HR closer)');
+  console.log('  martin.employee@castlewalk.us / CastleWalk1  (Empleado)');
 }
 
 await main()
