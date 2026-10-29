@@ -1,17 +1,22 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { AuthUser } from './auth.types.js';
+import { isAdminRole, isCompanyWideRole } from './roles.js';
 
 @Injectable()
 export class AccessService {
   constructor(private readonly prisma: PrismaService) {}
 
   isAdmin(user: AuthUser) {
-    return user.globalRole === 'ADMIN';
+    return isAdminRole(user.globalRole);
+  }
+
+  isCompanyWide(user: AuthUser) {
+    return isCompanyWideRole(user.globalRole);
   }
 
   async canManageArea(user: AuthUser, areaId: string) {
-    if (this.isAdmin(user)) return true;
+    if (this.isCompanyWide(user)) return true;
     const area = await this.prisma.area.findUnique({ where: { id: areaId } });
     return area?.leadUserId === user.id;
   }
@@ -33,7 +38,7 @@ export class AccessService {
   }
 
   async visibleAreaIds(user: AuthUser) {
-    if (this.isAdmin(user)) return null;
+    if (this.isCompanyWide(user)) return null;
     const [led, memberships] = await Promise.all([
       this.prisma.area.findMany({
         where: { leadUserId: user.id },
@@ -51,7 +56,7 @@ export class AccessService {
     user: AuthUser,
     ticket: { requesterId: string; assigneeId: string | null; areaId: string },
   ) {
-    if (this.isAdmin(user)) return true;
+    if (this.isCompanyWide(user)) return true;
     if (ticket.requesterId === user.id || ticket.assigneeId === user.id) {
       return true;
     }

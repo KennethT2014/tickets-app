@@ -9,6 +9,8 @@ datasource db {
 
 enum GlobalRole {
   ADMIN
+  MANAGEMENT
+  AREA_LEAD
   EMPLOYEE
 }
 
@@ -29,6 +31,7 @@ enum TicketPriority {
 }
 
 enum TicketEventType {
+  READ
   CREATED
   ASSIGNED
   STATUS_CHANGED

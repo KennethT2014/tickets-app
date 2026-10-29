@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { Header } from "../../components/Header";
 import { Sidebar } from "../../components/Sidebar";
 import { api } from "../../lib/api";
+import { isAdmin } from "../../lib/roles";
 import type { AuthProfile } from "../../lib/types";
 import { useI18n } from "../providers";
 
@@ -37,7 +38,7 @@ export default function AppShellLayout({ children }: { children: React.ReactNode
   useEffect(() => {
     if (
       user &&
-      user.globalRole !== "ADMIN" &&
+      !isAdmin(user.globalRole) &&
       pathname.startsWith("/admin")
     ) {
       router.replace("/");

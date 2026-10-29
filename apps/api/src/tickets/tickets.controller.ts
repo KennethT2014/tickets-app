@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import type { TicketStatus } from '@prisma/client';
 import type { AuthUser } from '../auth/auth.types.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
@@ -36,6 +44,16 @@ export class TicketsController {
   @Get('kpis')
   kpis(@CurrentUser() user: AuthUser) {
     return this.tickets.kpis(user);
+  }
+
+  @Get('audit')
+  audit(@CurrentUser() user: AuthUser) {
+    return this.tickets.audit(user);
+  }
+
+  @Post(':id/read')
+  recordRead(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.tickets.recordRead(user, id);
   }
 
   @Get(':id')

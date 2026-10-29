@@ -3,7 +3,8 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import type { Prisma, TicketStatus } from '@prisma/client';
+import { Prisma, type TicketStatus } from '@prisma/client';
+import { createHash } from 'node:crypto';
 import { AccessService } from '../auth/access.service.js';
 import type { AuthUser } from '../auth/auth.types.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
@@ -21,6 +22,19 @@ const ticketInclude = {
   requester: { select: { id: true, name: true, email: true } },
   assignee: { select: { id: true, name: true, email: true } },
 } as const;
+
+type AuditMilestone = {
+  at: Date;
+  elapsedMs: number;
+  actor: { id: string; name: string; email: string };
+};
+type AuditAverage = { count: number; averageMs: number | null };
+type AuditPerson = {
+  actor: AuditMilestone['actor'];
+  read: AuditAverage;
+  started: AuditAverage;
+  resolved: AuditAverage;
+};
 
 @Injectable()
 export class TicketsService {
@@ -71,42 +85,125 @@ export class TicketsService {
 
   async kpis(user: AuthUser) {
     const visibility = await this.visibilityWhere(user);
-    const tickets = await this.prisma.ticket.findMany({
-      where: visibility,
-      include: { area: { select: { id: true, name: true } } },
-    });
+    const [tickets, recentRawEvents] = await Promise.all([
+      this.prisma.ticket.findMany({
+        where: visibility,
+        include: { area: { select: { id: true, name: true } } },
+      }),
+      this.prisma.ticketEvent.findMany
+        ? this.prisma.ticketEvent.findMany({
+            where: { ticket: visibility },
+            include: {
+              actor: { select: { id: true, name: true, email: true } },
+              ticket: {
+                select: {
+                  id: true,
+                  number: true,
+                  title: true,
+                  area: { select: { name: true } },
+                },
+              },
+            },
+            orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+            take: 8,
+          })
+        : Promise.resolve([]),
+    ]);
     const now = Date.now();
+    const soonWindowMs = 48 * 3_600_000;
     const byStatus: Record<string, number> = {};
-    const byArea = new Map<string, { areaId: string; name: string; open: number }>();
+    const byPriority: Record<string, number> = {};
+    const byArea = new Map<
+      string,
+      {
+        areaId: string;
+        name: string;
+        open: number;
+        unassigned: number;
+        overdue: number;
+        critical: number;
+      }
+    >();
+
+    let open = 0;
+    let overdue = 0;
+    let dueSoon = 0;
+    let unassigned = 0;
+    let criticalOpen = 0;
+    let resolvedOrClosed = 0;
 
     for (const ticket of tickets) {
       byStatus[ticket.status] = (byStatus[ticket.status] ?? 0) + 1;
+      byPriority[ticket.priority] = (byPriority[ticket.priority] ?? 0) + 1;
+      if (ticket.status === 'RESOLVED' || ticket.status === 'CLOSED') {
+        resolvedOrClosed += 1;
+      }
       const isOpen = !['CLOSED', 'CANCELLED'].includes(ticket.status);
       if (isOpen) {
+        open += 1;
+        const dueMs = ticket.dueAt ? ticket.dueAt.getTime() : null;
+        const isTicketOverdue = dueMs !== null && dueMs < now;
+        const isTicketDueSoon =
+          dueMs !== null && dueMs >= now && dueMs <= now + soonWindowMs;
+        const isTicketUnassigned = !ticket.assigneeId;
+        const isTicketCritical =
+          ticket.priority === 'URGENT' || ticket.priority === 'HIGH';
+
+        if (isTicketOverdue) overdue += 1;
+        if (isTicketDueSoon) dueSoon += 1;
+        if (isTicketUnassigned) unassigned += 1;
+        if (isTicketCritical) criticalOpen += 1;
+
         const current = byArea.get(ticket.areaId) ?? {
           areaId: ticket.areaId,
           name: ticket.area.name,
           open: 0,
+          unassigned: 0,
+          overdue: 0,
+          critical: 0,
         };
         current.open += 1;
+        if (isTicketUnassigned) current.unassigned += 1;
+        if (isTicketOverdue) current.overdue += 1;
+        if (isTicketCritical) current.critical += 1;
         byArea.set(ticket.areaId, current);
       }
     }
 
+    const total = tickets.length;
+    const slaCompliancePct =
+      total > 0 ? Math.round(((total - overdue) / total) * 100) : 100;
+    const resolutionRatePct =
+      total > 0 ? Math.round((resolvedOrClosed / total) * 100) : 0;
+
     return {
-      open: tickets.filter((t) => !['CLOSED', 'CANCELLED'].includes(t.status))
-        .length,
-      overdue: tickets.filter(
-        (t) =>
-          t.dueAt &&
-          t.dueAt.getTime() < now &&
-          !['CLOSED', 'CANCELLED'].includes(t.status),
-      ).length,
+      total,
+      open,
+      overdue,
+      dueSoon,
+      unassigned,
+      criticalOpen,
+      slaCompliancePct,
+      resolutionRatePct,
       mine: tickets.filter(
         (t) => t.requesterId === user.id || t.assigneeId === user.id,
       ).length,
       byArea: [...byArea.values()].sort((a, b) => b.open - a.open),
       byStatus,
+      byPriority,
+      recentEvents: recentRawEvents.map((ev) => ({
+        id: ev.id,
+        type: ev.type,
+        message: ev.message,
+        createdAt: ev.createdAt,
+        actor: ev.actor,
+        ticket: {
+          id: ev.ticket.id,
+          number: ev.ticket.number,
+          title: ev.ticket.title,
+          areaName: ev.ticket.area.name,
+        },
+      })),
     };
   }
 
@@ -116,7 +213,9 @@ export class TicketsService {
       include: {
         ...ticketInclude,
         comments: {
-          include: { author: { select: { id: true, name: true, email: true } } },
+          include: {
+            author: { select: { id: true, name: true, email: true } },
+          },
           orderBy: { createdAt: 'asc' },
         },
         events: {
@@ -138,8 +237,131 @@ export class TicketsService {
     };
   }
 
+  async recordRead(user: AuthUser, id: string) {
+    const ticket = await this.requireTicket(id);
+    if (!(await this.access.canViewTicket(user, ticket))) {
+      throw new ForbiddenException();
+    }
+    // A stable primary key makes concurrent/retried reads a single atomic insert.
+    const eventId = `read_${createHash('sha256')
+      .update(JSON.stringify([id, user.id]))
+      .digest('hex')}`;
+    try {
+      return await this.prisma.ticketEvent.upsert({
+        where: { id: eventId },
+        create: {
+          id: eventId,
+          ticketId: id,
+          actorId: user.id,
+          type: 'READ',
+          message: 'Viewed ticket detail',
+        },
+        update: {},
+        select: { createdAt: true },
+      });
+    } catch (error) {
+      // Some adapters emulate upsert; a racing insert still has one winner.
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        return this.prisma.ticketEvent.findUniqueOrThrow({
+          where: { id: eventId },
+          select: { createdAt: true },
+        });
+      }
+      throw error;
+    }
+  }
+
+  async audit(user: AuthUser) {
+    const tickets = await this.prisma.ticket.findMany({
+      where: await this.visibilityWhere(user),
+      select: {
+        id: true,
+        number: true,
+        title: true,
+        status: true,
+        createdAt: true,
+        area: { select: { name: true } },
+        events: {
+          where: { type: { in: ['READ', 'STATUS_CHANGED'] } },
+          select: {
+            type: true,
+            message: true,
+            createdAt: true,
+            actor: { select: { id: true, name: true, email: true } },
+          },
+          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+        },
+      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
+    });
+    const people = new Map<string, AuditPerson>();
+    const rows = tickets.map(({ events, ...ticket }) => {
+      let firstRead: AuditMilestone | null = null;
+      let firstStarted: AuditMilestone | null = null;
+      let firstResolved: AuditMilestone | null = null;
+      const seen = new Set<string>();
+      for (const event of events) {
+        // Older status events use this exact server-authored message format.
+        const transition =
+          event.type === 'STATUS_CHANGED'
+            ? /^Status (OPEN|IN_PROGRESS|WAITING|RESOLVED|CLOSED|CANCELLED) → (IN_PROGRESS|RESOLVED)$/.exec(
+                event.message,
+              )
+            : null;
+        const kind =
+          event.type === 'READ'
+            ? 'read'
+            : transition && transition[1] !== transition[2]
+              ? transition[2] === 'IN_PROGRESS'
+                ? 'started'
+                : 'resolved'
+              : null;
+        const elapsedMs =
+          event.createdAt.getTime() - ticket.createdAt.getTime();
+        if (!kind || elapsedMs < 0) continue;
+        const milestone = {
+          at: event.createdAt,
+          elapsedMs,
+          actor: event.actor,
+        };
+        if (kind === 'read') firstRead ??= milestone;
+        if (kind === 'started') firstStarted ??= milestone;
+        if (kind === 'resolved') firstResolved ??= milestone;
+        const key = `${kind}:${event.actor.id}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const person = people.get(event.actor.id) ?? {
+          actor: event.actor,
+          read: { count: 0, averageMs: null },
+          started: { count: 0, averageMs: null },
+          resolved: { count: 0, averageMs: null },
+        };
+        const metric = person[kind];
+        metric.averageMs =
+          ((metric.averageMs ?? 0) * metric.count + elapsedMs) /
+          (metric.count + 1);
+        metric.count += 1;
+        people.set(event.actor.id, person);
+      }
+      return { ...ticket, firstRead, firstStarted, firstResolved };
+    });
+    return {
+      tickets: rows,
+      people: [...people.values()].sort(
+        (a, b) =>
+          a.actor.name.localeCompare(b.actor.name) ||
+          a.actor.id.localeCompare(b.actor.id),
+      ),
+    };
+  }
+
   async create(user: AuthUser, dto: CreateTicketDto) {
-    const area = await this.prisma.area.findUnique({ where: { id: dto.areaId } });
+    const area = await this.prisma.area.findUnique({
+      where: { id: dto.areaId },
+    });
     if (!area) throw new NotFoundException('Area not found');
     if (dto.assigneeId && !(await this.access.canAssign(user, dto.areaId))) {
       throw new ForbiddenException('You cannot assign tickets in this area');
@@ -207,7 +429,7 @@ export class TicketsService {
   async update(user: AuthUser, id: string, dto: UpdateTicketDto) {
     const ticket = await this.requireTicket(id);
     const canEdit =
-      this.access.isAdmin(user) ||
+      this.access.isCompanyWide(user) ||
       ticket.requesterId === user.id ||
       ticket.assigneeId === user.id ||
       (await this.access.canManageArea(user, ticket.areaId));
@@ -283,7 +505,7 @@ export class TicketsService {
       }
     } else {
       const canMove =
-        this.access.isAdmin(user) ||
+        this.access.isCompanyWide(user) ||
         ticket.assigneeId === user.id ||
         (await this.access.canAssign(user, ticket.areaId));
       if (!canMove) throw new ForbiddenException();
@@ -364,8 +586,10 @@ export class TicketsService {
     return ticket;
   }
 
-  private async visibilityWhere(user: AuthUser): Promise<Prisma.TicketWhereInput> {
-    if (this.access.isAdmin(user)) return {};
+  private async visibilityWhere(
+    user: AuthUser,
+  ): Promise<Prisma.TicketWhereInput> {
+    if (this.access.isCompanyWide(user)) return {};
     const areaIds = (await this.access.visibleAreaIds(user)) ?? [];
     return {
       OR: [

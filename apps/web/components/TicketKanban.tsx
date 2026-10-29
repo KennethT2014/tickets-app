@@ -12,6 +12,7 @@ import {
 import { createPortal } from "react-dom";
 import { useI18n } from "../app/providers";
 import { api } from "../lib/api";
+import { canOverseeAllTickets } from "../lib/roles";
 import type { AuthProfile, Ticket, TicketPriority, TicketStatus } from "../lib/types";
 
 const columns: TicketStatus[] = [
@@ -51,7 +52,7 @@ type DragState = {
 };
 
 function canMoveTicket(user: AuthProfile, ticket: Ticket, next: TicketStatus) {
-  if (user.globalRole === "ADMIN") return true;
+  if (canOverseeAllTickets(user.globalRole)) return true;
   const isLead = user.leadAreaIds.includes(ticket.areaId);
   const membership = user.memberships.find((item) => item.areaId === ticket.areaId);
   if (next === "CLOSED" || next === "CANCELLED") {
@@ -126,6 +127,7 @@ export function TicketKanban({ tickets }: { tickets: Ticket[] }) {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["tickets"] });
       queryClient.invalidateQueries({ queryKey: ["kpis"] });
+      queryClient.invalidateQueries({ queryKey: ["audit"] });
     },
   });
 

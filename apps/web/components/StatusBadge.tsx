@@ -1,7 +1,7 @@
 import { useI18n } from "../app/providers";
 import type { TicketPriority, TicketStatus } from "../lib/types";
 
-const statusClass: Record<TicketStatus, string> = {
+export const statusClass: Record<TicketStatus, string> = {
   OPEN: "bg-sky-50 text-sky-800",
   IN_PROGRESS: "bg-amber-50 text-amber-800",
   WAITING: "bg-violet-50 text-violet-800",

@@ -31,7 +31,12 @@ export class AuthService {
     }
     const token = await this.jwt.signAsync({ sub: user.id });
     this.setCookie(res, token);
-    return this.profileFor(user);
+    return this.profileFor({
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      globalRole: user.globalRole,
+    });
   }
 
   logout(res: Response) {

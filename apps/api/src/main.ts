@@ -8,7 +8,10 @@ async function bootstrap() {
   });
   app.setGlobalPrefix('api');
   app.use(cookieParser());
-  const origins = (process.env.CORS_ORIGIN ?? 'http://localhost:3000')
+  const origins = (
+    process.env.CORS_ORIGIN ??
+    'http://localhost:3000,http://127.0.0.1:3000'
+  )
     .split(',')
     .map((origin) => origin.trim());
   app.enableCors({
