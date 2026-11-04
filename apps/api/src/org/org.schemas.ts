@@ -23,7 +23,13 @@ export const patchMemberSchema = z.object({
   canClose: z.boolean().optional(),
 });
 
+export const quickReplySchema = z.object({
+  title: z.string().min(2).max(120),
+  body: z.string().min(1).max(5000),
+});
+
 export type CreateAreaDto = z.infer<typeof createAreaSchema>;
 export type UpdateAreaDto = z.infer<typeof updateAreaSchema>;
 export type UpsertMemberDto = z.infer<typeof upsertMemberSchema>;
 export type PatchMemberDto = z.infer<typeof patchMemberSchema>;
+export type QuickReplyDto = z.infer<typeof quickReplySchema>;

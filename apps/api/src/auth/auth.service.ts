@@ -29,7 +29,7 @@ export class AuthService {
     if (!valid) {
       throw new UnauthorizedException('Invalid credentials');
     }
-    const token = await this.jwt.signAsync({ sub: user.id });
+    const token = await this.jwt.signAsync({ sub: user.id, tokenVersion: user.tokenVersion });
     this.setCookie(res, token);
     return this.profileFor({
       id: user.id,
@@ -39,8 +39,15 @@ export class AuthService {
     });
   }
 
-  logout(res: Response) {
+  async logout(user: AuthUser, res: Response) {
     res.clearCookie(this.cookieName(), { path: '/' });
+    if (user?.id) {
+      // Invalidate tokenVersion so previous tokens cannot be reused
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: { tokenVersion: { increment: 1 } },
+      }).catch(() => null);
+    }
     return { ok: true };
   }
 

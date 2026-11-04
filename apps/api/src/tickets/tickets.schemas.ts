@@ -35,10 +35,23 @@ export const assignTicketSchema = z.object({
 
 export const statusTicketSchema = z.object({
   status: z.enum(ticketStatuses),
+  reason: z.string().max(1000).optional(),
+  waitingUntil: z.string().datetime().nullable().optional(),
 });
 
 export const commentTicketSchema = z.object({
   body: z.string().min(1).max(5000),
+  visibility: z.enum(['PUBLIC', 'INTERNAL']).optional().default('PUBLIC'),
+});
+
+export const transferTicketSchema = z.object({
+  areaId: z.string().min(1),
+  reason: z.string().max(1000).optional(),
+});
+
+export const linkTicketSchema = z.object({
+  toTicketNumberOrId: z.string().min(1),
+  type: z.enum(['PARENT_OF', 'RELATED', 'DUPLICATE_OF']),
 });
 
 export type CreateTicketDto = z.infer<typeof createTicketSchema>;
@@ -46,3 +59,5 @@ export type UpdateTicketDto = z.infer<typeof updateTicketSchema>;
 export type AssignTicketDto = z.infer<typeof assignTicketSchema>;
 export type StatusTicketDto = z.infer<typeof statusTicketSchema>;
 export type CommentTicketDto = z.infer<typeof commentTicketSchema>;
+export type TransferTicketDto = z.infer<typeof transferTicketSchema>;
+export type LinkTicketDto = z.infer<typeof linkTicketSchema>;

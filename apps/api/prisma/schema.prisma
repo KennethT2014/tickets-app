@@ -38,6 +38,20 @@ enum TicketEventType {
   COMMENTED
   CLOSED
   PRIORITY_CHANGED
+  REOPENED
+  TRANSFERRED
+  LINKED
+}
+
+enum CommentVisibility {
+  PUBLIC
+  INTERNAL
+}
+
+enum LinkType {
+  PARENT_OF
+  RELATED
+  DUPLICATE_OF
 }
 
 model User {
@@ -47,6 +61,8 @@ model User {
   name         String
   isActive     Boolean    @default(true)
   globalRole   GlobalRole @default(EMPLOYEE)
+  /// Incremented on logout, role/password change or deactivation to revoke issued JWTs.
+  tokenVersion Int        @default(0)
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
@@ -57,6 +73,10 @@ model User {
   comments          TicketComment[]
   events            TicketEvent[]
   notifications     Notification[]
+  createdLinks      TicketLink[]
+  quickReplies      QuickReply[]
+  attachments       Attachment[]
+  watchers          TicketWatcher[]
 }
 
 model Area {
@@ -68,11 +88,16 @@ model Area {
   children   Area[]   @relation("AreaTree")
   leadUserId String?
   lead       User?    @relation("AreaLead", fields: [leadUserId], references: [id], onDelete: SetNull)
+  /// Materialized ancestor path built from ids, e.g. "/rootId/hrId/". Used for subtree scoping.
+  path       String   @unique
+  depth      Int      @default(0)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
   memberships AreaMembership[]
   tickets     Ticket[]
+  quickReplies QuickReply[]
+  attachments  Attachment[]
 }
 
 model AreaMembership {
@@ -101,36 +126,95 @@ model Ticket {
   priority    TicketPriority @default(MEDIUM)
   category    String?
   dueAt       DateTime?
+  waitingUntil DateTime?
+  resolvedAt  DateTime?
+  closedAt    DateTime?
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
-  requester     User           @relation("TicketRequester", fields: [requesterId], references: [id])
-  area          Area           @relation(fields: [areaId], references: [id])
-  assignee      User?          @relation("TicketAssignee", fields: [assigneeId], references: [id])
+  requester     User            @relation("TicketRequester", fields: [requesterId], references: [id])
+  area          Area            @relation(fields: [areaId], references: [id])
+  assignee      User?           @relation("TicketAssignee", fields: [assigneeId], references: [id])
   comments      TicketComment[]
   events        TicketEvent[]
   notifications Notification[]
+  linksFrom     TicketLink[]    @relation("LinkFrom")
+  linksTo       TicketLink[]    @relation("LinkTo")
+  attachments   Attachment[]
+  watchers      TicketWatcher[]
 }
 
 model TicketComment {
-  id        String   @id @default(cuid())
-  ticketId  String
-  authorId  String
-  body      String
-  createdAt DateTime @default(now())
-  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  author    User     @relation(fields: [authorId], references: [id])
+  id         String            @id @default(cuid())
+  ticketId   String
+  authorId   String
+  body       String
+  visibility CommentVisibility @default(PUBLIC)
+  createdAt  DateTime          @default(now())
+  ticket     Ticket            @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author     User              @relation(fields: [authorId], references: [id])
+  attachments Attachment[]
+}
+
+model TicketLink {
+  id          String   @id @default(cuid())
+  fromId      String
+  toId        String
+  type        LinkType @default(RELATED)
+  createdById String
+  createdAt   DateTime @default(now())
+
+  fromTicket Ticket @relation("LinkFrom", fields: [fromId], references: [id], onDelete: Cascade)
+  toTicket   Ticket @relation("LinkTo", fields: [toId], references: [id], onDelete: Cascade)
+  creator    User   @relation(fields: [createdById], references: [id])
+
+  @@unique([fromId, toId, type])
 }
 
 model TicketEvent {
-  id        String          @id @default(cuid())
-  ticketId  String
-  actorId   String
-  type      TicketEventType
-  message   String
-  createdAt DateTime        @default(now())
-  ticket    Ticket          @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  actor     User            @relation(fields: [actorId], references: [id])
+  id         String          @id @default(cuid())
+  ticketId   String
+  actorId    String
+  type       TicketEventType
+  message    String
+  fromStatus TicketStatus?
+  toStatus   TicketStatus?
+  /// JSON with structured details (reason, previous values, ...).
+  metadata   String?
+  createdAt  DateTime        @default(now())
+  ticket     Ticket          @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  actor      User            @relation(fields: [actorId], references: [id])
+}
+
+/// System-wide, append-only audit trail. Rows are hash-chained (prevHash -> hash)
+/// and protected by database triggers against UPDATE and DELETE.
+model AuditLog {
+  id         String   @id @default(cuid())
+  seq        Int      @unique
+  occurredAt DateTime
+  actorId    String?
+  actorRole  String?
+  actorRank  Int?
+  action     String
+  result     String
+  entityType String
+  entityId   String?
+  areaId     String?
+  areaPath   String?
+  before     String?
+  after      String?
+  reason     String?
+  ip         String?
+  userAgent  String?
+  requestId  String?
+  prevHash   String
+  hash       String
+
+  @@index([occurredAt])
+  @@index([actorId, occurredAt])
+  @@index([entityType, entityId])
+  @@index([areaPath])
+  @@index([action])
 }
 
 model Notification {
@@ -143,6 +227,51 @@ model Notification {
   createdAt DateTime  @default(now())
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   ticket    Ticket?   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+}
+
+model TicketWatcher {
+  id        String   @id @default(cuid())
+  ticketId  String
+  userId    String
+  createdAt DateTime @default(now())
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([ticketId, userId])
+}
+
+model QuickReply {
+  id          String   @id @default(cuid())
+  areaId      String
+  title       String
+  body        String
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  area    Area @relation(fields: [areaId], references: [id], onDelete: Cascade)
+  creator User @relation(fields: [createdById], references: [id])
+}
+
+model Attachment {
+  id          String   @id @default(cuid())
+  ticketId    String
+  commentId   String?
+  areaId      String
+  uploaderId  String
+  filename    String
+  mimeType    String
+  sizeBytes   Int
+  storagePath String
+  createdAt   DateTime @default(now())
+
+  ticket   Ticket         @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  comment  TicketComment? @relation(fields: [commentId], references: [id], onDelete: SetNull)
+  area     Area           @relation(fields: [areaId], references: [id], onDelete: Cascade)
+  uploader User           @relation(fields: [uploaderId], references: [id])
+
+  @@index([ticketId])
 }
 
 model TicketCounter {

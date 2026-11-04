@@ -41,6 +41,8 @@ export type AreaNode = {
   name: string;
   slug: string;
   parentId: string | null;
+  path?: string;
+  depth?: number;
   lead: { id: string; name: string; email: string } | null;
   members: AreaMember[];
   children: AreaNode[];
@@ -65,13 +67,37 @@ export type Ticket = {
   assignee: { id: string; name: string; email: string } | null;
 };
 
+export type TicketCommentItem = {
+  id: string;
+  body: string;
+  visibility: "PUBLIC" | "INTERNAL";
+  createdAt: string;
+  author: { id: string; name: string; email: string };
+};
+
+export type TicketLinkItem = {
+  id: string;
+  type: "PARENT_OF" | "RELATED" | "DUPLICATE_OF";
+  fromTicket?: { id: string; number: string; title: string; status: TicketStatus };
+  toTicket?: { id: string; number: string; title: string; status: TicketStatus };
+};
+
+export type AttachmentItem = {
+  id: string;
+  ticketId: string;
+  commentId?: string | null;
+  areaId: string;
+  uploaderId: string;
+  filename: string;
+  mimeType: string;
+  sizeBytes: number;
+  createdAt: string;
+  uploader: { id: string; name: string; email: string };
+};
+
 export type TicketDetail = Ticket & {
-  comments: {
-    id: string;
-    body: string;
-    createdAt: string;
-    author: { id: string; name: string; email: string };
-  }[];
+  comments: TicketCommentItem[];
+  attachments?: AttachmentItem[];
   events: {
     id: string;
     type: string;
@@ -79,7 +105,23 @@ export type TicketDetail = Ticket & {
     createdAt: string;
     actor: { id: string; name: string; email: string };
   }[];
-  permissions: { canAssign: boolean; canClose: boolean };
+  linksFrom?: TicketLinkItem[];
+  linksTo?: TicketLinkItem[];
+  isWatching?: boolean;
+  permissions: {
+    canAssign: boolean;
+    canClose: boolean;
+    canAddInternalComment?: boolean;
+  };
+};
+
+export type QuickReplyItem = {
+  id: string;
+  areaId: string;
+  title: string;
+  body: string;
+  createdAt: string;
+  creator: { id: string; name: string };
 };
 
 export type KpiAreaSummary = {
@@ -154,4 +196,41 @@ export type NotificationItem = {
   ticketId: string | null;
   readAt: string | null;
   createdAt: string;
+};
+
+export type AuditLogEntry = {
+  id: string;
+  seq: number;
+  occurredAt: string;
+  actorId: string | null;
+  actorRole: string | null;
+  actorRank: number | null;
+  action: string;
+  result: "SUCCESS" | "DENIED" | "ERROR";
+  entityType: string;
+  entityId: string | null;
+  areaId: string | null;
+  areaPath: string | null;
+  before: string | null;
+  after: string | null;
+  reason: string | null;
+  ip: string | null;
+  userAgent: string | null;
+  requestId: string | null;
+  prevHash: string;
+  hash: string;
+};
+
+export type AuditLogsResponse = {
+  logs: AuditLogEntry[];
+  total: number;
+  take: number;
+  skip: number;
+};
+
+export type AuditIntegrityResponse = {
+  valid: boolean;
+  totalChecked: number;
+  brokenSeq?: number;
+  error?: string;
 };

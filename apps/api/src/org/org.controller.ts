@@ -13,10 +13,12 @@ import { ZodValidationPipe } from '../common/zod-pipe.js';
 import {
   createAreaSchema,
   patchMemberSchema,
+  quickReplySchema,
   updateAreaSchema,
   upsertMemberSchema,
   type CreateAreaDto,
   type PatchMemberDto,
+  type QuickReplyDto,
   type UpdateAreaDto,
   type UpsertMemberDto,
 } from './org.schemas.js';
@@ -27,8 +29,8 @@ export class OrgController {
   constructor(private readonly org: OrgService) {}
 
   @Get('tree')
-  tree() {
-    return this.org.tree();
+  tree(@CurrentUser() user: AuthUser) {
+    return this.org.tree(user);
   }
 
   @Post('areas')
@@ -79,5 +81,24 @@ export class OrgController {
     @Param('userId') userId: string,
   ) {
     return this.org.removeMember(user, id, userId);
+  }
+
+  @Get('areas/:id/quick-replies')
+  listQuickReplies(@CurrentUser() user: AuthUser, @Param('id') areaId: string) {
+    return this.org.listQuickReplies(user, areaId);
+  }
+
+  @Post('areas/:id/quick-replies')
+  createQuickReply(
+    @CurrentUser() user: AuthUser,
+    @Param('id') areaId: string,
+    @Body(new ZodValidationPipe(quickReplySchema)) dto: QuickReplyDto,
+  ) {
+    return this.org.createQuickReply(user, areaId, dto.title, dto.body);
+  }
+
+  @Delete('quick-replies/:id')
+  deleteQuickReply(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.org.deleteQuickReply(user, id);
   }
 }

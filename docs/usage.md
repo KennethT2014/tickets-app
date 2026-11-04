@@ -4,12 +4,12 @@ Los empleados dejan de pedir cosas por correo. Cada solicitud va a un área (HR,
 
 ## Roles
 
-| Quién              | Qué puede hacer                                                                 |
-| ------------------ | ------------------------------------------------------------------------------- |
-| **Admin**          | Ve y configura todo: usuarios, áreas, tickets, organigrama                      |
-| **Gerencia**       | Ve todos los tickets, puede asignar y cerrar en cualquier área. No administra usuarios ni áreas |
-| **Jefe de área**   | Asigna tickets de su área, otorga `canAssign` / `canClose`, puede cerrar        |
-| **Empleado**       | Crea tickets hacia cualquier área y trabaja los que le asignan                  |
+| Quién            | Qué puede hacer                                                                                 |
+| ---------------- | ----------------------------------------------------------------------------------------------- |
+| **Admin**        | Ve y configura todo: usuarios, áreas, tickets, organigrama                                      |
+| **Gerencia**     | Ve todos los tickets, puede asignar y cerrar en cualquier área. No administra usuarios ni áreas |
+| **Jefe de área** | Asigna tickets de su área, otorga `canAssign` / `canClose`, puede cerrar                        |
+| **Empleado**     | Crea tickets hacia cualquier área y trabaja los que le asignan                                  |
 
 El jefe de un área se asigna en el organigrama (`leadUserId`). El rol **Jefe de área** es el cargo; los permisos de esa área siguen dependiendo de figurar como lead.
 
@@ -108,3 +108,43 @@ the application. No database reset or migration is required.
 ## Next step
 
 Si necesitas endpoints o el modelo de datos, ve a [architecture.md](architecture.md).
+
+## Administration workspace
+
+Only ADMIN accounts can open Users and Areas. Users supports creation, name and
+role changes, activation/deactivation and password resets. Available roles and
+editable accounts follow the server hierarchy: administrators may edit themselves
+or lower-rank accounts, but cannot create another ADMIN or edit a peer ADMIN.
+Password, role and activation changes revoke that user's existing sessions.
+
+Areas supports creating, renaming, moving under another parent, selecting a lead,
+and deleting an empty area. Parent choices exclude the area and its descendants.
+Use Manage to add/remove members, toggle assignment and closure permissions, and
+create/delete department quick replies. The server rejects deleting areas with
+tickets or children; the error remains visible. Destructive actions require a
+confirmation. Quick replies support creation and deletion, not editing.
+
+Audit retains performance milestones and adds paged system/security logs with
+10, 25, 50 or 100 records, previous/next controls and complete expandable record
+details. Viewing logs itself adds an audit record, so new events can shift pages.
+Administrators can check the stored hash chain. This check detects inconsistencies
+in the fields covered by that chain; it is not a substitute for independent
+backups. No date/search/export or backup-management endpoint is currently exposed
+by the API. Server failures remain visible and log requests can be retried.
+
+### Local browser verification
+
+The isolated smoke test uses the real local web/API/database, creates recognizable
+UI Test fixtures, removes its own areas/replies and deactivates fixture users.
+There is no user-deletion API, so those inactive test accounts remain visible.
+Run with a locally available Playwright installation and Chromium:
+
+```bash
+NODE_PATH=/path/to/node_modules CHROMIUM_PATH=/path/to/chromium \
+  node apps/web/scripts/admin-smoke.mjs
+```
+
+Optional variables: ADMIN_TEST_URL (localhost only), ADMIN_TEST_EMAIL,
+ADMIN_TEST_PASSWORD, PLAYWRIGHT_MODULE and ADMIN_TEST_OUTPUT. The default demo
+login is intended only for the local development database. Screenshots go to a
+temporary directory. The script does not reset or migrate the database.
