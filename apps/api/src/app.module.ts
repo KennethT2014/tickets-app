@@ -2,8 +2,10 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { createObserveModule } from '@nestjs/observe';
+import { ScheduleModule } from '@nestjs/schedule';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
+import { AuditModule } from './audit/audit.module.js';
 import { JwtAuthGuard } from './auth/jwt-auth.guard.js';
 import { AuthModule } from './auth/auth.module.js';
 import { NotificationsModule } from './notifications/notifications.module.js';
@@ -17,12 +19,14 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    ScheduleModule.forRoot(),
     ObserveModule.forRoot({
       appKey: 'YOUR_APP_KEY',
       appSecret: 'YOUR_APP_SECRET',
       serviceId: 'api',
     }),
     PrismaModule,
+    AuditModule,
     AuthModule,
     UsersModule,
     OrgModule,

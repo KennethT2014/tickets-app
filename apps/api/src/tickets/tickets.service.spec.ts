@@ -1,7 +1,9 @@
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { promises as fs } from 'node:fs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { AccessService } from '../auth/access.service.js';
+import type { AuditService } from '../audit/audit.service.js';
+import { PolicyService } from '../auth/policy.service.js';
 import type { AuthUser } from '../auth/auth.types.js';
 import type { NotificationsService } from '../notifications/notifications.service.js';
 import type { PrismaService } from '../prisma/prisma.service.js';
@@ -42,7 +44,8 @@ const event = (
 describe('Ticket audit', () => {
   let service: TicketsService;
   let prisma: ReturnType<typeof mocks>;
-  let access: AccessService;
+  let policy: PolicyService;
+  let audit: AuditService;
 
   function mocks() {
     return {
@@ -50,19 +53,23 @@ describe('Ticket audit', () => {
         findUnique: vi.fn().mockResolvedValue(ticket),
         findMany: vi.fn().mockResolvedValue([]),
       },
-      ticketEvent: { upsert: vi.fn(), findUniqueOrThrow: vi.fn() },
+      ticketEvent: { upsert: vi.fn(), findUniqueOrThrow: vi.fn(), create: vi.fn() },
+      ticketWatcher: { findUnique: vi.fn(), create: vi.fn(), delete: vi.fn() },
+      attachment: { findFirst: vi.fn(), create: vi.fn() },
       area: { findMany: vi.fn().mockResolvedValue([]) },
-      areaMembership: { findMany: vi.fn().mockResolvedValue([]) },
+      areaMembership: { findMany: vi.fn().mockResolvedValue([]), findUnique: vi.fn().mockResolvedValue(null) },
     };
   }
 
   beforeEach(() => {
     prisma = mocks();
-    access = new AccessService(prisma as unknown as PrismaService);
+    policy = new PolicyService(prisma as unknown as PrismaService);
+    audit = { record: vi.fn().mockResolvedValue(undefined) } as unknown as AuditService;
     service = new TicketsService(
       prisma as unknown as PrismaService,
-      access,
+      policy,
       {} as NotificationsService,
+      audit,
     );
   });
 
@@ -82,8 +89,8 @@ describe('Ticket audit', () => {
       ...ticket,
       requesterId: user.id,
     });
-    vi.spyOn(access, 'canAssign').mockResolvedValue(false);
-    vi.spyOn(access, 'canClose').mockResolvedValue(false);
+    vi.spyOn(policy, 'canAssign').mockResolvedValue(false);
+    vi.spyOn(policy, 'canClose').mockResolvedValue(false);
     await service.get(user, 'ticket');
     expect(prisma.ticketEvent.upsert).not.toHaveBeenCalled();
   });
@@ -149,10 +156,10 @@ describe('Ticket audit', () => {
     'uses existing %s visibility for reports',
     async (role) => {
       if (role === 'lead')
-        prisma.area.findMany.mockResolvedValue([{ id: 'led' }]);
+        prisma.area.findMany.mockResolvedValue([{ id: 'led', path: '/led/' }]);
       if (role === 'member')
         prisma.areaMembership.findMany.mockResolvedValue([
-          { areaId: 'member' },
+          { areaId: 'member', area: { path: '/member/' } },
         ]);
       await service.audit({
         ...user,
@@ -161,27 +168,37 @@ describe('Ticket audit', () => {
             ? 'ADMIN'
             : role === 'management'
               ? 'MANAGEMENT'
-              : 'EMPLOYEE',
+              : role === 'lead'
+                ? 'AREA_LEAD'
+                : 'EMPLOYEE',
       });
       expect(prisma.ticket.findMany.mock.calls[0]?.[0].where).toEqual(
         role === 'admin' || role === 'management'
           ? {}
-          : {
-              OR: [
-                { requesterId: user.id },
-                { assigneeId: user.id },
-                {
-                  areaId: {
-                    in:
-                      role === 'lead'
-                        ? ['led']
-                        : role === 'member'
-                          ? ['member']
-                          : [],
+          : role === 'lead'
+            ? {
+                OR: [
+                  { requesterId: user.id },
+                  { assigneeId: user.id },
+                  { areaId: { in: ['led'] } },
+                ],
+              }
+            : {
+                OR: [
+                  { requesterId: user.id },
+                  { assigneeId: user.id },
+                  {
+                    AND: [
+                      {
+                        areaId: {
+                          in: role === 'member' ? ['member'] : [],
+                        },
+                      },
+                      { assigneeId: null },
+                    ],
                   },
-                },
-              ],
-            },
+                ],
+              },
       );
     },
   );
@@ -316,5 +333,78 @@ describe('Ticket audit', () => {
       byPriority: { URGENT: 1, HIGH: 1, LOW: 1 },
       recentEvents: [],
     });
+  });
+
+  it('toggles ticket watching state', async () => {
+    prisma.ticket.findUnique.mockResolvedValue({
+      ...ticket,
+      requesterId: user.id,
+    });
+
+    // When not watching -> adds watcher
+    prisma.ticketWatcher.findUnique.mockResolvedValue(null);
+    prisma.ticketWatcher.create.mockResolvedValue({ id: 'w1', ticketId: 'ticket', userId: user.id });
+
+    const res1 = await service.toggleWatch(user, 'ticket');
+    expect(res1).toEqual({ watching: true });
+    expect(prisma.ticketWatcher.create).toHaveBeenCalledWith({
+      data: { ticketId: 'ticket', userId: user.id },
+    });
+
+    // When already watching -> removes watcher
+    prisma.ticketWatcher.findUnique.mockResolvedValue({ id: 'w1' });
+    prisma.ticketWatcher.delete.mockResolvedValue({});
+
+    const res2 = await service.toggleWatch(user, 'ticket');
+    expect(res2).toEqual({ watching: false });
+    expect(prisma.ticketWatcher.delete).toHaveBeenCalledWith({
+      where: { ticketId_userId: { ticketId: 'ticket', userId: user.id } },
+    });
+  });
+
+  it('adds and verifies attachments', async () => {
+    vi.spyOn(fs, 'mkdir').mockResolvedValue(undefined as any);
+    vi.spyOn(fs, 'writeFile').mockResolvedValue(undefined);
+
+    prisma.ticket.findUnique.mockResolvedValue({
+      ...ticket,
+      requesterId: user.id,
+      area: { id: 'area', name: 'Support', path: '/area/' },
+    });
+
+    const filePayload = {
+      originalname: 'report.pdf',
+      mimetype: 'application/pdf',
+      size: 1024,
+      buffer: Buffer.from('test content'),
+    };
+
+    prisma.attachment.create.mockResolvedValue({
+      id: 'att-1',
+      ticketId: 'ticket',
+      filename: 'report.pdf',
+      sizeBytes: 1024,
+      mimeType: 'application/pdf',
+      storagePath: 'test-path',
+      uploader: user,
+    });
+
+    const res = await service.addAttachment(user, 'ticket', filePayload);
+    expect(res.id).toBe('att-1');
+    expect(prisma.attachment.create).toHaveBeenCalled();
+    expect(prisma.ticketEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          type: 'COMMENTED',
+          message: expect.stringContaining('Attached file: report.pdf'),
+        }),
+      }),
+    );
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'ticket.attachment.upload',
+        result: 'SUCCESS',
+      }),
+    );
   });
 });

@@ -38,12 +38,16 @@ export class JwtAuthGuard implements CanActivate {
     }
 
     try {
-      const payload = await this.jwt.verifyAsync<{ sub: string }>(token);
+      const payload = await this.jwt.verifyAsync<{ sub: string; tokenVersion?: number }>(token);
       const user = await this.prisma.user.findUnique({
         where: { id: payload.sub },
       });
       if (!user || !user.isActive) {
         throw new UnauthorizedException();
+      }
+      // Session revocation check: if tokenVersion doesn't match current user tokenVersion, reject
+      if (payload.tokenVersion !== undefined && user.tokenVersion !== payload.tokenVersion) {
+        throw new UnauthorizedException('Session revoked');
       }
       request.user = {
         id: user.id,

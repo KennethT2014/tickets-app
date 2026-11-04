@@ -1,6 +1,7 @@
 import { PrismaLibSQL } from '@prisma/adapter-libsql';
 import { PrismaClient } from '@prisma/client';
 import * as argon2 from 'argon2';
+import { randomUUID } from 'node:crypto';
 import { slugify } from '../src/common/slug.js';
 
 const adapter = new PrismaLibSQL({
@@ -42,10 +43,17 @@ async function upsertUser(input: {
 
 async function upsertArea(name: string, parentId: string | null, leadUserId: string | null) {
   const slug = slugify(name);
+  const parent = parentId
+    ? await prisma.area.findUniqueOrThrow({ where: { id: parentId } })
+    : null;
+  const existing = await prisma.area.findUnique({ where: { slug } });
+  const id = existing?.id ?? randomUUID();
+  const path = `${parent?.path ?? '/'}${id}/`;
+  const depth = parent ? parent.depth + 1 : 0;
   return prisma.area.upsert({
     where: { slug },
-    update: { name, parentId, leadUserId },
-    create: { name, slug, parentId, leadUserId },
+    update: { name, parentId, leadUserId, path, depth },
+    create: { id, name, slug, parentId, leadUserId, path, depth },
   });
 }
 

@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -6,8 +7,15 @@ import {
   Patch,
   Post,
   Query,
+  Res,
+  StreamableFile,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import type { TicketStatus } from '@prisma/client';
+import type { Response } from 'express';
+import { createReadStream } from 'node:fs';
 import type { AuthUser } from '../auth/auth.types.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
 import { ZodValidationPipe } from '../common/zod-pipe.js';
@@ -15,15 +23,26 @@ import {
   assignTicketSchema,
   commentTicketSchema,
   createTicketSchema,
+  linkTicketSchema,
   statusTicketSchema,
+  transferTicketSchema,
   updateTicketSchema,
   type AssignTicketDto,
   type CommentTicketDto,
   type CreateTicketDto,
+  type LinkTicketDto,
   type StatusTicketDto,
+  type TransferTicketDto,
   type UpdateTicketDto,
 } from './tickets.schemas.js';
 import { TicketsService } from './tickets.service.js';
+
+type UploadedFilePayload = {
+  originalname: string;
+  mimetype: string;
+  size: number;
+  buffer: Buffer;
+};
 
 @Controller('tickets')
 export class TicketsController {
@@ -103,5 +122,70 @@ export class TicketsController {
     @Body(new ZodValidationPipe(commentTicketSchema)) dto: CommentTicketDto,
   ) {
     return this.tickets.comment(user, id, dto);
+  }
+
+  @Post(':id/claim')
+  claim(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.tickets.assign(user, id, { assigneeId: user.id });
+  }
+
+  @Post(':id/transfer')
+  transfer(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(transferTicketSchema)) dto: TransferTicketDto,
+  ) {
+    return this.tickets.transfer(user, id, dto.areaId, dto.reason);
+  }
+
+  @Post(':id/links')
+  link(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(linkTicketSchema)) dto: LinkTicketDto,
+  ) {
+    return this.tickets.link(user, id, dto.toTicketNumberOrId, dto.type);
+  }
+
+  @Post(':id/watch')
+  watch(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.tickets.toggleWatch(user, id);
+  }
+
+  @Post(':id/attachments')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 15 * 1024 * 1024 }, // 15MB limit
+    }),
+  )
+  uploadAttachment(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @UploadedFile() file?: UploadedFilePayload,
+    @Body('commentId') commentId?: string,
+  ) {
+    if (!file) {
+      throw new BadRequestException('File is required');
+    }
+    return this.tickets.addAttachment(user, id, file, commentId);
+  }
+
+  @Get(':id/attachments/:attachmentId')
+  async downloadAttachment(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Param('attachmentId') attachmentId: string,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { attachment, filePath } = await this.tickets.getAttachment(
+      user,
+      id,
+      attachmentId,
+    );
+    res.set({
+      'Content-Type': attachment.mimeType,
+      'Content-Disposition': `attachment; filename="${encodeURIComponent(attachment.filename)}"`,
+    });
+    return new StreamableFile(createReadStream(filePath));
   }
 }

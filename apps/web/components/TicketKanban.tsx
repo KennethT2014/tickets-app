@@ -51,13 +51,37 @@ type DragState = {
   height: number;
 };
 
+const VALID_TRANSITIONS: Record<TicketStatus, TicketStatus[]> = {
+  OPEN: ["IN_PROGRESS", "CANCELLED"],
+  IN_PROGRESS: ["WAITING", "RESOLVED", "CANCELLED"],
+  WAITING: ["IN_PROGRESS", "RESOLVED", "CANCELLED"],
+  RESOLVED: ["IN_PROGRESS", "CLOSED"],
+  CLOSED: ["IN_PROGRESS"],
+  CANCELLED: [],
+};
+
 function canMoveTicket(user: AuthProfile, ticket: Ticket, next: TicketStatus) {
-  if (canOverseeAllTickets(user.globalRole)) return true;
+  // If no change or not a permitted transition according to state machine, block
+  if (ticket.status === next) return true;
+  const allowed = VALID_TRANSITIONS[ticket.status] ?? [];
+  if (!allowed.includes(next)) return false;
+
   const isLead = user.leadAreaIds.includes(ticket.areaId);
   const membership = user.memberships.find((item) => item.areaId === ticket.areaId);
+
+  // Segregation of duties: Requesters cannot close or cancel their own tickets unless ADMIN
   if (next === "CLOSED" || next === "CANCELLED") {
+    if (ticket.requesterId === user.id && user.globalRole !== "ADMIN") return false;
+    if (canOverseeAllTickets(user.globalRole)) return true;
     return isLead || membership?.canClose === true;
   }
+
+  // Reopening closed tickets
+  if (ticket.status === "CLOSED" && next === "IN_PROGRESS") {
+    return canOverseeAllTickets(user.globalRole) || isLead;
+  }
+
+  if (canOverseeAllTickets(user.globalRole)) return true;
   return ticket.assigneeId === user.id || isLead || membership?.canAssign === true;
 }
 

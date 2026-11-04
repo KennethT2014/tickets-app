@@ -48,6 +48,12 @@ bun-debug.log*
 # Local database
 data/*
 !data/.gitkeep
+
+# Uploads
+uploads/*
+!uploads/.gitkeep
+apps/api/uploads/*
+!apps/api/uploads/.gitkeep
 apps/api/prisma/*.db
 apps/api/prisma/*.db-journal
 *.sqlite

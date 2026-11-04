@@ -54,6 +54,29 @@ export default function TicketsPage() {
     if (next === "board") setStatus("");
   };
 
+  const exportCsv = () => {
+    if (!tickets.length) return;
+    const headers = ["Number", "Title", "Area", "Status", "Priority", "Requester", "Assignee", "Created At"];
+    const rows = tickets.map((t) => [
+      t.number,
+      `"${t.title.replace(/"/g, '""')}"`,
+      `"${t.area.name.replace(/"/g, '""')}"`,
+      t.status,
+      t.priority,
+      `"${t.requester.name.replace(/"/g, '""')}"`,
+      `"${t.assignee?.name ?? 'Unassigned'}"`,
+      new Date(t.createdAt).toISOString(),
+    ]);
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `tickets-export-${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div
       className={
@@ -65,6 +88,14 @@ export default function TicketsPage() {
       <div className="flex shrink-0 flex-col gap-3">
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="mr-auto text-2xl font-bold text-navy">{t("tickets.title")}</h1>
+          <button
+            type="button"
+            onClick={exportCsv}
+            disabled={!tickets.length}
+            className="inline-flex h-10 items-center justify-center rounded-lg border border-navy/20 bg-white px-3 text-sm font-semibold text-navy hover:bg-gray-50 disabled:opacity-40"
+          >
+            📊 {t("tickets.exportCsv")}
+          </button>
           <div className="flex h-10 rounded-lg bg-white p-1 shadow-sm">
             <button
               type="button"

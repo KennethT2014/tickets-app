@@ -13,7 +13,7 @@ import { useMemo, useState } from "react";
 import { useI18n } from "../app/providers";
 import { api } from "../lib/api";
 import { flattenAreas, layoutOrgTree } from "../lib/org-layout";
-import { canOverseeAllTickets, isAdmin as hasAdminRole } from "../lib/roles";
+import { canManageAreaTree, isAdmin as hasAdminRole } from "../lib/roles";
 import type { AreaNode, AuthProfile, PublicUser } from "../lib/types";
 import { Modal } from "./Modal";
 
@@ -50,14 +50,16 @@ export function OrgCanvas({ user }: { user: AuthProfile }) {
   const layout = useMemo(() => layoutOrgTree(forest), [forest]);
   const flat = useMemo(() => flattenAreas(forest), [forest]);
   const isAdmin = hasAdminRole(user.globalRole);
-  const canManage = (area: AreaNode) =>
-    canOverseeAllTickets(user.globalRole) || user.leadAreaIds.includes(area.id);
+  const canManage = (area: AreaNode) => canManageAreaTree(user, area.id, flat);
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["org"] });
 
   const createArea = useMutation({
-    mutationFn: (body: { name: string; parentId: string | null; leadUserId: string | null }) =>
-      api("/org/areas", { method: "POST", body: JSON.stringify(body) }),
+    mutationFn: (body: {
+      name: string;
+      parentId: string | null;
+      leadUserId: string | null;
+    }) => api("/org/areas", { method: "POST", body: JSON.stringify(body) }),
     onSuccess: () => {
       invalidate();
       setCreating(false);
@@ -162,7 +164,10 @@ export function OrgCanvas({ user }: { user: AuthProfile }) {
           </h3>
           <ul className="mt-2 space-y-2">
             {selectedLive.members.map((member) => (
-              <li key={member.userId} className="rounded-lg border border-gray-100 p-2 text-sm">
+              <li
+                key={member.userId}
+                className="rounded-lg border border-gray-100 p-2 text-sm"
+              >
                 <p className="font-medium text-navy">{member.name}</p>
                 {canManage(selectedLive) && (
                   <div className="mt-2 flex gap-3 text-xs">
@@ -223,7 +228,9 @@ export function OrgCanvas({ user }: { user: AuthProfile }) {
                 {users
                   .filter(
                     (person) =>
-                      !selectedLive.members.some((member) => member.userId === person.id),
+                      !selectedLive.members.some(
+                        (member) => member.userId === person.id,
+                      ),
                   )
                   .map((person) => (
                     <option key={person.id} value={person.id}>
@@ -267,7 +274,10 @@ export function OrgCanvas({ user }: { user: AuthProfile }) {
               placeholder={t("org.name")}
               className="w-full rounded-lg border border-gray-5 bg-gray-6 px-3 py-2"
             />
-            <select name="parentId" className="w-full rounded-lg border border-gray-5 bg-gray-6 px-3 py-2">
+            <select
+              name="parentId"
+              className="w-full rounded-lg border border-gray-5 bg-gray-6 px-3 py-2"
+            >
               <option value="">{t("org.parent")}</option>
               {flat.map((area) => (
                 <option key={area.id} value={area.id}>
@@ -275,7 +285,10 @@ export function OrgCanvas({ user }: { user: AuthProfile }) {
                 </option>
               ))}
             </select>
-            <select name="leadUserId" className="w-full rounded-lg border border-gray-5 bg-gray-6 px-3 py-2">
+            <select
+              name="leadUserId"
+              className="w-full rounded-lg border border-gray-5 bg-gray-6 px-3 py-2"
+            >
               <option value="">{t("org.lead")}</option>
               {users.map((person) => (
                 <option key={person.id} value={person.id}>
@@ -287,7 +300,10 @@ export function OrgCanvas({ user }: { user: AuthProfile }) {
               <button type="button" onClick={() => setCreating(false)}>
                 {t("common.cancel")}
               </button>
-              <button type="submit" className="rounded-lg bg-orange px-4 py-2 font-semibold text-white">
+              <button
+                type="submit"
+                className="rounded-lg bg-orange px-4 py-2 font-semibold text-white"
+              >
                 {t("org.save")}
               </button>
             </div>
