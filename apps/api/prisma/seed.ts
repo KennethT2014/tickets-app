@@ -3,6 +3,7 @@ import { PrismaClient } from '@prisma/client';
 import * as argon2 from 'argon2';
 import { randomUUID } from 'node:crypto';
 import { slugify } from '../src/common/slug.js';
+import { seedHistory } from './seed-history.js';
 
 const adapter = new PrismaLibSQL({
   url: process.env.LIBSQL_URL ?? 'http://127.0.0.1:8080',
@@ -211,6 +212,16 @@ async function main() {
         },
       ],
     });
+  }
+
+  const history = await seedHistory(prisma);
+  if (history.skipped) {
+    console.log('Historical tickets already present');
+  } else {
+    console.log(
+      `Historical sample: ${history.users} users, ${history.tickets} tickets, ${history.events} events, ${history.audits} audit rows`,
+    );
+    console.log('Historical staff password: CastleWalk1');
   }
 
   console.log('Seed ready');
